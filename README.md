@@ -50,18 +50,36 @@ Done when: the results table below has latency, size and AP per class for every 
 **Week 4: ship.** FastAPI endpoint and Dockerfile, pytest for the converter and the evaluation, GitHub Actions, a short write-up.
 Done when: `docker run` serves predictions and CI is green.
 
-Current step: week 1. The YOLO11n baseline is training.
+Current step: week 2. Week 1 is done (results below).
 
 ## Results
 
-The table is filled in as runs finish. AP values are AP50-95 on the val split.
+The table is filled in as runs finish. AP values are AP50-95 on the val split. CPU latency and size are measured in week 3 on the exported ONNX models, so all versions are measured the same way.
 
 | Model | Weights | Input | mAP50-95 | pallet | small_load_carrier | stillage | pallet_truck | forklift | CPU ms/image | Size MB |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| YOLO11n | FP32 | 960 | | | | | | | | |
+| YOLO11n | FP32 | 960 | 0.164 | 0.267 | 0.159 | 0.251 | 0.058 | 0.085 | | |
 | YOLO11n | INT8 | 960 | | | | | | | | |
 | YOLO11n | INT8 | 640 | | | | | | | | |
 | RT-DETR-l | FP32 | 640 | | | | | | | | |
+
+### Week 1: what the baseline shows
+
+YOLO11n, 960 px, best epoch 35 of 65 (early stopping with patience 30), 1.6 hours on a Kaggle T4. Per-class table: `results/yolo11n_fp32_960.csv`, training log: `results/train_log.csv`.
+
+| Class | Val boxes | Precision | Recall | AP50 | AP50-95 |
+|---|---:|---:|---:|---:|---:|
+| pallet | 52,297 | 0.588 | 0.646 | 0.637 | 0.267 |
+| stillage | 2,007 | 0.624 | 0.419 | 0.461 | 0.251 |
+| small_load_carrier | 8,911 | 0.571 | 0.369 | 0.391 | 0.159 |
+| forklift | 124 | 0.211 | 0.258 | 0.176 | 0.085 |
+| pallet_truck | 1,153 | 0.456 | 0.147 | 0.178 | 0.058 |
+| all | 64,492 | 0.490 | 0.368 | 0.369 | 0.164 |
+
+1. **Overall level.** mAP50 is 0.369. For reference, the LOCO paper reports 22.1% mAP50 for YOLOv4-tiny and 41.0% for YOLOv4, and the replication study reports 49.98% (YOLOv4-tiny) and 64.54% (YOLOv4), evaluated on subset 1 only with subset 5 added to training. The splits differ, so this is a rough comparison.
+2. **Pallet truck is the weakest class, not forklift.** It has 1,153 val boxes but only 0.147 recall. The confusion matrix (`results/confusion_matrix_normalized.png`) shows that 27% of forklifts are predicted as pallet trucks and 19% of pallet trucks as forklifts. The replication study describes the same confusion and notes that manual and electric pallet trucks share one class.
+3. **Most false detections are pallets.** 81% of the detections that match no labelled object are predicted as pallet. Open question for week 2: how many of them are pallets that were not labelled?
+4. **The model stops transferring early.** After epoch 35 the training loss kept falling, but val mAP50-95 only moved between 0.14 and 0.16. The val subsets were recorded in other places than the train subsets, so the model gets better at the training scenes without getting better at new ones. The jumps of about 0.01 from one epoch to the next are also why the comparisons later need several seeds and confidence intervals.
 
 ## Repository layout
 
@@ -71,6 +89,8 @@ scripts/loco_stats.py          counts boxes per class, split and size
 notebooks/01_baseline_yolo11n.ipynb   week 1, runs on Kaggle
 notebooks/02_rtdetr.ipynb             week 2, runs on Kaggle
 tests/                         pytest for the converter
+results/                       per-class tables, training logs and plots from each run
+docs/research_plan.md          question, related work and hypotheses, written before the results
 ```
 
 ## Run
