@@ -50,7 +50,7 @@ Done when: the results table below has latency, size and AP per class for every 
 **Week 4: ship.** FastAPI endpoint and Dockerfile, pytest for the converter and the evaluation, GitHub Actions, a short write-up.
 Done when: `docker run` serves predictions and CI is green.
 
-Current step: week 2. Week 1 is done (results below).
+Current step: week 2. Both models are trained (results below); next are a YOLO11n run at 640 px, two more seeds, and the per-size evaluation with pycocotools.
 
 ## Results
 
@@ -61,11 +61,11 @@ The table is filled in as runs finish. AP values are AP50-95 on the val split. C
 | YOLO11n | FP32 | 960 | 0.164 | 0.267 | 0.159 | 0.251 | 0.058 | 0.085 | | |
 | YOLO11n | INT8 | 960 | | | | | | | | |
 | YOLO11n | INT8 | 640 | | | | | | | | |
-| RT-DETR-l | FP32 | 640 | | | | | | | | |
+| RT-DETR-l | FP32 | 640 | 0.215 | 0.262 | 0.195 | 0.372 | 0.111 | 0.135 | | |
 
 ### Week 1: what the baseline shows
 
-YOLO11n, 960 px, best epoch 35 of 65 (early stopping with patience 30), 1.6 hours on a Kaggle T4. Per-class table: `results/yolo11n_fp32_960.csv`, training log: `results/train_log.csv`.
+YOLO11n, 960 px, best epoch 35 of 65 (early stopping with patience 30), 1.6 hours on one Kaggle T4 GPU. Per-class table: `results/yolo11n_fp32_960.csv`, training log: `results/train_log.csv`.
 
 | Class | Val boxes | Precision | Recall | AP50 | AP50-95 |
 |---|---:|---:|---:|---:|---:|
@@ -79,7 +79,24 @@ YOLO11n, 960 px, best epoch 35 of 65 (early stopping with patience 30), 1.6 hour
 1. **Overall level.** mAP50 is 0.369. For reference, the LOCO paper reports 22.1% mAP50 for YOLOv4-tiny and 41.0% for YOLOv4, and the replication study reports 49.98% (YOLOv4-tiny) and 64.54% (YOLOv4), evaluated on subset 1 only with subset 5 added to training. The splits differ, so this is a rough comparison.
 2. **Pallet truck is the weakest class, not forklift.** It has 1,153 val boxes but only 0.147 recall. The confusion matrix (`results/confusion_matrix_normalized.png`) shows that 27% of forklifts are predicted as pallet trucks and 19% of pallet trucks as forklifts. The replication study describes the same confusion and notes that manual and electric pallet trucks share one class.
 3. **Most false detections are pallets.** 81% of the detections that match no labelled object are predicted as pallet. Open question for week 2: how many of them are pallets that were not labelled?
-4. **The model stops transferring early.** After epoch 35 the training loss kept falling, but val mAP50-95 only moved between 0.14 and 0.16. The val subsets were recorded in other places than the train subsets, so the model gets better at the training scenes without getting better at new ones. The jumps of about 0.01 from one epoch to the next are also why the comparisons later need several seeds and confidence intervals.
+4. **The model stops transferring early.** After epoch 35 the training loss kept falling, but val mAP50-95 only moved between 0.14 and 0.16. The val subsets come from other recording sessions than the train subsets, so the model gets better at the training scenes without getting better at new ones. The jumps of about 0.01 from one epoch to the next are also why the comparisons later need several seeds and confidence intervals.
+
+### Week 2: RT-DETR-l against YOLO11n
+
+RT-DETR-l, 640 px, best epoch 14 of 34 (early stopping with patience 20), 2.3 hours on one Kaggle T4 GPU. Files: `results/rtdetr_l_640/`.
+
+| Class | YOLO11n 960 px AP50-95 | RT-DETR-l 640 px AP50-95 | RT-DETR-l recall |
+|---|---:|---:|---:|
+| pallet | 0.267 | 0.262 | 0.630 |
+| stillage | 0.251 | 0.372 | 0.581 |
+| small_load_carrier | 0.159 | 0.195 | 0.414 |
+| forklift | 0.085 | 0.135 | 0.323 |
+| pallet_truck | 0.058 | 0.111 | 0.233 |
+| all | 0.164 | 0.215 | 0.436 |
+
+1. **RT-DETR-l is better overall, but not on pallets.** mAP50 rises from 0.369 to 0.448. The gains are in stillages, pallet trucks and forklifts. Pallets stay at the same AP, and the confusion matrix shows more missed pallets (13% instead of 8%). This fits the lower input size, since many pallets are tiny. The comparison changes two things at once, though: the model (33 million instead of 2.6 million parameters) and the input size (640 instead of 960 px). The next run, YOLO11n at 640 px (`notebooks/03_yolo11n_640_and_seeds.ipynb`), separates the two.
+2. **The forklift and pallet truck confusion becomes one-sided.** RT-DETR-l predicts 43% of the forklifts as pallet trucks (YOLO11n: 27%), but only 7% of the pallet trucks as forklifts (YOLO11n: 19%). The training split has 1,674 pallet trucks and 474 forklifts. One possible reason is that the model leans towards the more frequent of two similar classes; this needs a closer look at the images.
+3. **The early peak is stronger.** Val mAP50-95 peaked at epoch 14 (0.215) and then fell to 0.17-0.18 while the training loss kept falling.
 
 ## Repository layout
 
@@ -88,8 +105,9 @@ scripts/coco_to_yolo.py        LOCO annotations (COCO JSON) -> YOLO label files 
 scripts/loco_stats.py          counts boxes per class, split and size
 notebooks/01_baseline_yolo11n.ipynb   week 1, runs on Kaggle
 notebooks/02_rtdetr.ipynb             week 2, runs on Kaggle
+notebooks/03_yolo11n_640_and_seeds.ipynb  YOLO11n at 640 px and two more seeds at 960 px
 tests/                         pytest for the converter
-results/                       per-class tables, training logs and plots from each run
+results/                       per-class tables, training logs and plots (YOLO11n week 1 at the top level, other runs in subfolders)
 docs/research_plan.md          question, related work and hypotheses, written before the results
 ```
 
