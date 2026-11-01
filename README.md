@@ -50,7 +50,7 @@ Done when: the results table below has latency, size and AP per class for every 
 **Week 4: ship.** FastAPI endpoint and Dockerfile, pytest for the converter and the evaluation, GitHub Actions, a short write-up.
 Done when: `docker run` serves predictions and CI is green.
 
-Current step: week 2. Both models are trained (results below); next are a YOLO11n run at 640 px, two more seeds, and the per-size evaluation with pycocotools.
+Current step: week 2. Both models are trained (results below). Notebook 03 trains YOLO11n at 640 px and two more seeds at 960 px. Notebook 04 scores every trained model with pycocotools, per class and per object size, with 95 % bootstrap intervals over the val images.
 
 ## Results
 
@@ -103,10 +103,12 @@ RT-DETR-l, 640 px, best epoch 14 of 34 (early stopping with patience 20), 2.3 ho
 ```
 scripts/coco_to_yolo.py        LOCO annotations (COCO JSON) -> YOLO label files and dataset YAML
 scripts/loco_stats.py          counts boxes per class, split and size
+scripts/coco_eval.py           COCO AP for one class and size range, with image weights for the bootstrap
 notebooks/01_baseline_yolo11n.ipynb   week 1, runs on Kaggle
 notebooks/02_rtdetr.ipynb             week 2, runs on Kaggle
 notebooks/03_yolo11n_640_and_seeds.ipynb  YOLO11n at 640 px and two more seeds at 960 px
-tests/                         pytest for the converter
+notebooks/04_coco_eval_by_size.ipynb      AP per class and object size (pycocotools), 95 % bootstrap intervals
+tests/                         pytest for the converter and for coco_eval.py (checked against pycocotools)
 results/                       per-class tables, training logs and plots (YOLO11n week 1 at the top level, other runs in subfolders)
 docs/research_plan.md          question, related work and hypotheses, written before the results
 ```
